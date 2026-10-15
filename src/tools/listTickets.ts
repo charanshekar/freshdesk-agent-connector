@@ -2,7 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { nextPageFrom, type FreshdeskClient } from "../freshdesk/client.js";
 import { ticketSummary, UNTRUSTED_NOTE, type RawTicket } from "../freshdesk/mappers.js";
-import { ok, safe } from "./util.js";
+import { isoDate, ok, safe } from "./util.js";
 
 const PER_PAGE = 20;
 
@@ -22,11 +22,7 @@ export function registerListTickets(server: McpServer, client: FreshdeskClient):
           .enum(["created_at", "updated_at", "due_by"])
           .default("created_at")
           .describe("Field to sort by, newest first."),
-        updated_since: z
-          .string()
-          .regex(/^\d{4}-\d{2}-\d{2}$/, "Use the format YYYY-MM-DD, e.g. 2026-10-01.")
-          .optional()
-          .describe("Only tickets updated on or after this date, YYYY-MM-DD."),
+        updated_since: isoDate.optional().describe("Only tickets updated on or after this date, YYYY-MM-DD."),
         page: z.number().int().min(1).default(1).describe("Page number. Use next_page from the previous result."),
       },
       annotations: { readOnlyHint: true },

@@ -1,5 +1,13 @@
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import { z } from "zod";
 import { FreshdeskError } from "../freshdesk/client.js";
+
+// A calendar date as YYYY-MM-DD. The refine rejects shapes that pass the regex
+// but aren't real dates (2026-02-30), so Freshdesk never sees them.
+export const isoDate = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Use the format YYYY-MM-DD, e.g. 2026-10-01.")
+  .refine((s) => new Date(`${s}T00:00:00Z`).toISOString().startsWith(s), "Not a real calendar date. Use YYYY-MM-DD, e.g. 2026-10-01.");
 
 export function ok(data: unknown): CallToolResult {
   return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };

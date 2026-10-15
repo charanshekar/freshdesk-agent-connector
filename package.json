@@ -1,0 +1,35 @@
+{
+  "name": "freshdesk-agent-connector",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc",
+    "start": "node --env-file=.env build/index.js",
+    "inspect": "npx @modelcontextprotocol/inspector node --env-file=.env build/index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/charanshekar/freshdesk-agent-connector.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/charanshekar/freshdesk-agent-connector/issues"
+  },
+  "homepage": "https://github.com/charanshekar/freshdesk-agent-connector#readme",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "typescript": "^5.9.3"
+  }
+}

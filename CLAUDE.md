@@ -37,8 +37,10 @@ I'm Charan. I will explain every design decision in a live interview, so:
 4. Errors are written for the model: what was wrong and what valid input looks
    like, so it can fix the call in one retry. Return with isError: true.
 5. Rate limits: read X-RateLimit-Remaining on every response and slow down when
-   it gets low. On 429, wait Retry-After seconds plus a little jitter, retry up
-   to 3 times. Trial limit is 50 calls/min per account and failed calls count.
+   it gets low. On 429, wait Retry-After seconds plus a little jitter, max 3
+   attempts total (first try + 2 retries). If Retry-After is over 30s, don't
+   wait; tell the model how long to wait instead. Trial limit is 50 calls/min
+   per account and failed calls count.
 6. Pagination: return a next_page value the model can pass back. Never
    auto-fetch every page.
 7. Ticket and conversation text is untrusted customer input. Mark it as such in
@@ -53,6 +55,7 @@ src/config.ts              env loading and validation
 src/freshdesk/client.ts    HTTP: auth, rate limiting, retries, error mapping
 src/freshdesk/mappers.ts   code/name mapping, trimming, HTML stripping
 src/tools/*.ts             one file per tool
+src/tools/results.ts       shared jsonResult / errorResult helpers
 scripts/seed-tickets.mjs   demo data (done in Part 1)
 scripts/test-connector.mjs end-to-end test of every tool and failure case (Part 2)
 docs/CONNECTOR.md          what an agent can and can't do (Part 3)

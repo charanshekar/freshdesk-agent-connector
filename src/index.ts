@@ -2,6 +2,8 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { ConfigError, loadConfig } from "./config.js";
 import { createFreshdeskClient } from "./freshdesk/client.js";
+import { registerGetTicket } from "./tools/getTicket.js";
+import { registerListTickets } from "./tools/listTickets.js";
 import { registerWhoami } from "./tools/whoami.js";
 
 async function main() {
@@ -10,6 +12,8 @@ async function main() {
 
   const server = new McpServer({ name: "freshdesk-connector", version: "0.1.0" });
   registerWhoami(server, client);
+  registerListTickets(server, client);
+  registerGetTicket(server, client);
 
   const transport = new StdioServerTransport();
   await server.connect(transport);

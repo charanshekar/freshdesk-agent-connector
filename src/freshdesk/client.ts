@@ -73,6 +73,13 @@ export function createFreshdeskClient(config: Config): FreshdeskClient {
   return { request, rateLimitRemaining: () => lastRemaining };
 }
 
+// Freshdesk adds `Link: <...page=N>; rel="next"` only when another page exists.
+// We return a page number the model can pass back, never a URL it could edit.
+export function nextPageFrom(headers: Headers, currentPage: number): number | null {
+  const link = headers.get("link") ?? "";
+  return /rel="?next"?/.test(link) ? currentPage + 1 : null;
+}
+
 function buildUrl(domain: string, path: string, query: RequestOptions["query"] = {}): URL {
   const url = new URL(`https://${domain}/api/v2${path}`);
   for (const [key, value] of Object.entries(query)) {

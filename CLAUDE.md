@@ -55,7 +55,7 @@ src/config.ts              env loading and validation
 src/freshdesk/client.ts    HTTP: auth, rate limiting, retries, error mapping
 src/freshdesk/mappers.ts   code/name mapping, trimming, HTML stripping
 src/tools/*.ts             one file per tool
-src/tools/results.ts       shared jsonResult / errorResult helpers
+src/tools/util.ts          shared ok / fail / safe helpers for tool results
 scripts/seed-tickets.mjs   demo data (done in Part 1)
 scripts/test-connector.mjs end-to-end test of every tool and failure case (Part 2)
 docs/CONNECTOR.md          what an agent can and can't do (Part 3)

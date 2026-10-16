@@ -2,7 +2,7 @@
 
 A private MCP connector that lets an AI agent read tickets and contacts from a merchant's Freshdesk account and, only with explicit confirmation, add internal notes.
 
-Built for Razorpay's Forward Deployed Engineer take-home, option 3: "Ship a private connector for a merchant tool". Agent Studio is built on the Claude Agent SDK, which speaks MCP, so this is a standard MCP server over stdio. Claude Desktop and the MCP Inspector stand in for Agent Studio during development.
+Agent Studio is built on the Claude Agent SDK, which speaks MCP, so this is a standard MCP server over stdio. Claude Desktop and the MCP Inspector stand in for Agent Studio during development.
 
 **Status: Part 2, step 1 of 9 done.** The foundation (config, HTTP client, health check) works. The ticket tools are next.
 
@@ -23,7 +23,6 @@ Built for Razorpay's Forward Deployed Engineer take-home, option 3: "Ship a priv
 ## What's in the repo right now
 
 ```
-CLAUDE.md                  design rules and plan (Claude Code reads this)
 .env.example               required variables, no secrets
 scripts/seed-tickets.mjs   creates 15 realistic D2C support tickets
 src/index.ts               server bootstrap, registers tools, connects stdio
@@ -46,7 +45,7 @@ npm run inspect           # opens the MCP Inspector; run freshdesk_whoami
 
 ## Design decisions
 
-These are fixed in `CLAUDE.md`. The ones marked done are in the code today.
+These are the fixed design rules. The ones marked done are in the code today.
 
 1. **The model never sees Freshdesk's numeric codes.** Status 2/3/4/5 and priority 1/2/3/4 are mapped to words in both directions. *Pending, step 2.*
 2. **Search takes structured arguments.** The connector builds Freshdesk's query string; the model never writes query syntax. Tags are regex-validated before going into the query, to block injection. *Pending, step 4.*
@@ -103,8 +102,7 @@ These are fixed in `CLAUDE.md`. The ones marked done are in the code today.
 - [ ] Review fixes from this README's questions
 - [ ] `docs/CONNECTOR.md`: what an agent can and can't do, auth (API key now, OAuth for many merchants), rate limits, known limits
 - [ ] Small automated eval: natural-language tasks, checking the agent picks the right tool with the right arguments
-- [ ] Demo script for the interview, including the prompt-injection ticket
-- [ ] Submit the repo link to Razorpay
+- [ ] Demo script, including the prompt-injection ticket
 
 ## Known limitations so far
 

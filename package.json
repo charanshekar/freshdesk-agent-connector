@@ -7,7 +7,7 @@
     "doc": "docs"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node scripts/test-connector.mjs",
     "build": "tsc",
     "start": "node --env-file=.env build/index.js",
     "inspect": "npx @modelcontextprotocol/inspector node --env-file=.env build/index.js"

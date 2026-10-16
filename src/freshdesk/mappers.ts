@@ -149,8 +149,11 @@ export function ticketDetail(t: RawTicket) {
   };
 }
 
-// Prefer Freshdesk's own plain-text copy; fall back to stripping the HTML.
-// Both go through stripHtml so whitespace is normalised the same way.
+// Prefer stripping the HTML: it keeps line breaks, and literal text like "<b>"
+// arrives escaped (&lt;b&gt;) so it survives. Freshdesk's plain-text copy is
+// already decoded, so running stripHtml on it would delete such text; we only
+// tidy its whitespace.
 function plainText(text: string | undefined, html: string | undefined): string {
-  return stripHtml(text ?? html ?? "");
+  if (html !== undefined) return stripHtml(html);
+  return (text ?? "").replace(/\s+/g, " ").trim();
 }

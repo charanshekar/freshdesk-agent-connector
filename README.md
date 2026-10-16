@@ -2,35 +2,30 @@
 
 A private MCP connector that lets an AI agent read tickets and contacts from a merchant's Freshdesk account and, only with explicit confirmation, add internal notes.
 
-Built for Razorpay's Forward Deployed Engineer take-home, option 3: "Ship a private connector for a merchant tool". Agent Studio is built on the Claude Agent SDK, which speaks MCP, so this is a standard MCP server over stdio. Claude Desktop and the MCP Inspector stand in for Agent Studio during development.
+Agent Studio is built on the Claude Agent SDK, which speaks MCP, so this is a standard MCP server over stdio. Claude Desktop and the MCP Inspector stood in for Agent Studio during development.
 
-**Status: complete.** Six tools, an end-to-end test script, and a capability doc. Start with [`docs/CONNECTOR.md`](docs/CONNECTOR.md) for what an agent can and can't do.
+**Status: complete and tested.** Six tools, a generated tool spec, an end-to-end test suite (21 checks, all passing against a live Freshdesk account) and a capability doc. Start with [`docs/CONNECTOR.md`](docs/CONNECTOR.md) for what an agent can and can't do.
+
+## What's delivered
+
+| Requirement | Where |
+|---|---|
+| Working auth flow | API key over HTTP Basic, validated at startup ([`src/config.ts`](src/config.ts)); `freshdesk_whoami` proves it end to end. OAuth path for many merchants described in [`docs/CONNECTOR.md`](docs/CONNECTOR.md#auth). |
+| The right primitives | **list**, **get** (ticket, contact), **search**, and one gated **write** (private note). |
+| Rate limit handling | [`src/freshdesk/client.ts`](src/freshdesk/client.ts): reads the remaining budget on every response, slows down when low, retries 429s with `Retry-After` plus jitter. |
+| MCP tool spec | [`docs/tool-spec.json`](docs/tool-spec.json), generated from the running server with `npm run spec`. |
+| What an agent can and can't do | [`docs/CONNECTOR.md`](docs/CONNECTOR.md) |
 
 ## Tools
 
 | Tool | What it does | Writes? |
 |---|---|---|
-| `freshdesk_whoami` | Connection check | No |
-| `freshdesk_list_tickets` | Recent tickets, 20 per page, `next_page` | No |
-| `freshdesk_get_ticket` | One ticket with requester and latest conversations | No |
+| `freshdesk_whoami` | Connection check: which agent the key acts as | No |
+| `freshdesk_list_tickets` | Recent tickets, newest first, 20 per page, `next_page` | No |
+| `freshdesk_get_ticket` | One ticket with requester, description and up to 10 conversations | No |
 | `freshdesk_search_tickets` | Structured filters: status, priority, tag, created_after | No |
 | `freshdesk_get_contact` | Requester name, email, company (no phone numbers) | No |
-| `freshdesk_add_private_note` | Private note, preview first, confirm with a single-use token | Yes, private only |
-
-## Layout
-
-```
-CLAUDE.md                     design rules used during the build
-docs/CONNECTOR.md             what an agent can and can't do, auth, rate limits, safety
-docs/description-fixes.md     wrong tool picks seen in testing and the description fix for each
-scripts/seed-tickets.mjs      15 realistic D2C support tickets, including a prompt injection
-scripts/test-connector.mjs    end-to-end tests through the MCP protocol
-src/index.ts                  server bootstrap
-src/config.ts                 env loading and validation
-src/freshdesk/client.ts       the only file that does HTTP: auth, pacing, retries, errors
-src/freshdesk/mappers.ts      codes to words, HTML to text, trimming, untrusted labels
-src/tools/*.ts                one file per tool
-```
+| `freshdesk_add_private_note` | Private note: preview first, then confirm with a single-use token | Yes, private only |
 
 ## Run it
 
@@ -40,48 +35,19 @@ Requires Node 20.6 or newer (for `--env-file`) and a Freshdesk account. A free t
 git clone https://github.com/charanshekar/freshdesk-agent-connector.git
 cd freshdesk-agent-connector
 npm install
-cp .env.example .env      # Charan sends the trial key separately, never in chat or git
+cp .env.example .env      # fill in FRESHDESK_DOMAIN and FRESHDESK_API_KEY; never commit it
 npm run build
-node --env-file=.env scripts/seed-tickets.mjs   # optional: demo data
-npm test                  # end-to-end tests, about 25 API calls
+node --env-file=.env scripts/seed-tickets.mjs   # optional: demo tickets, incl. a prompt injection
+npm test                  # end-to-end checks; about 10 API calls; writes one private test note
 npm run inspect           # browse and call the tools in the MCP Inspector
+npm run spec              # regenerate docs/tool-spec.json (no account needed)
 ```
 
-## Design decisions
+`npm test -- --burst` also fires 60 calls at once to show rate-limit behaviour (it uses up that minute's quota).
 
-Full detail in `docs/CONNECTOR.md`.
+### Use it from Claude Desktop
 
-1. **The model never sees Freshdesk's numeric codes.** Status 2/3/4/5 and priority 1/2/3/4 are mapped to words in both directions.
-2. **Search takes structured arguments.** The connector builds Freshdesk's query string; the model never writes query syntax. Tags are regex-validated before going into the query, to block injection.
-3. **Tools return trimmed objects, not raw API JSON.** HTML stripped, long text truncated with a marker, only fields an agent needs.
-4. **Errors are written for the model.** Each error says what went wrong, whether to retry, and what to do next.
-5. **Rate limits are handled proactively and reactively.** See below.
-6. **Pagination returns `next_page`.** The connector never auto-fetches every page. *Link header parsing done, used from step 3.*
-7. **Customer-written text is labelled untrusted.** Ticket bodies are data, never instructions. One seed ticket is a deliberate prompt injection.
-8. **Exactly one write tool, in two phases.** `freshdesk_add_private_note` returns a preview and a single-use token bound to the exact text; only a second call with the token writes. No customer replies, status changes or deletes.
-
-## How the HTTP client works
-
-`src/freshdesk/client.ts` exposes one function, `freshdesk<T>(path, options)`, that every tool will call.
-
-- **Auth:** HTTP Basic, API key as username, `X` as password. 15 second timeout per request.
-- **Pacing (proactive):** remembers `x-ratelimit-remaining` from the last response. When 5 or fewer calls are left in the minute, waits about 1.5s plus jitter before each call. The trial limit is 50 calls per minute per account, shared across every integration, and failed calls count too.
-- **Backoff (reactive):** on 429, waits `Retry-After` seconds plus up to 1s jitter, up to 3 attempts. Never sleeps more than 30s inside a tool call; returns "wait about N seconds" instead, because hosts time out long tool calls.
-- **Retry policy:**
-
-  | Response | Retried? | Why |
-  |---|---|---|
-  | 429 | Yes, even for POST | Rejected before processing, so safe |
-  | 5xx, network error, timeout | GET only | A POST may have landed; retrying could duplicate a note |
-  | 400, 401, 403, 404 | Never | Same request fails the same way and still costs budget |
-
-- **Errors:** throws `FreshdeskError(status, modelMessage)`. 401, 403 and 404 get fixed messages that tell the model whether to retry. 400s list each field error Freshdesk returned.
-- **Logging:** every call logs method, path, status, remaining budget and cost to **stderr**. stdout is the MCP protocol channel and must stay clean.
-- **Pagination helper:** `nextPageFrom(headers)` reads the page number from the `Link: <...>; rel="next"` header.
-
-## Using it from Claude Desktop
-
-Add to `claude_desktop_config.json` (Settings, Developer, Edit Config), using absolute paths:
+Add to `claude_desktop_config.json` (Settings → Developer → Edit Config), with absolute paths:
 
 ```json
 {
@@ -94,6 +60,52 @@ Add to `claude_desktop_config.json` (Settings, Developer, Edit Config), using ab
 }
 ```
 
+## Layout
+
+```
+docs/CONNECTOR.md             what an agent can and can't do: auth, rate limits, safety, limits
+docs/tool-spec.json           the MCP tool spec, generated by npm run spec
+docs/manual_eval.md           wrong tool picks seen with a real model, and the description fix for each
+scripts/seed-tickets.mjs      realistic D2C support tickets, including a prompt injection
+scripts/test-connector.mjs    end-to-end tests through the MCP protocol (npm test)
+scripts/dump-tool-spec.mjs    writes docs/tool-spec.json
+src/index.ts                  server bootstrap: config, client, register tools, stdio
+src/config.ts                 env loading and validation
+src/freshdesk/client.ts       the only file that does HTTP: auth, pacing, retries, errors
+src/freshdesk/mappers.ts      codes to words, HTML to text, trimming, untrusted labels
+src/tools/*.ts                one file per tool, plus util.ts (results, error wrapper)
+```
+
+## Design decisions
+
+1. **The model never sees Freshdesk's numeric codes.** Status 2/3/4/5 and priority 1/2/3/4 are words in both directions.
+2. **Search takes structured arguments.** The connector builds Freshdesk's query string; the model never writes query syntax. Tags are allowlist-validated so they can't inject query conditions.
+3. **Tools return trimmed objects, not raw API JSON.** HTML stripped, long text truncated with a marker, only fields an agent needs.
+4. **Errors are written for the model.** Each says what went wrong and whether retrying can help.
+5. **Rate limits are handled proactively and reactively.** See below.
+6. **Pagination returns `next_page`.** The connector never fetches every page on its own.
+7. **Customer-written text is labelled untrusted** and can never change what a tool does.
+8. **Exactly one write tool, in two phases.** A preview returns a single-use token bound to the ticket and exact text; only a second call with that token writes. No customer replies, status changes or deletes.
+
+## How the HTTP client works
+
+[`src/freshdesk/client.ts`](src/freshdesk/client.ts): `createFreshdeskClient(config)` returns `request<T>(path, options)`, which every tool uses.
+
+- **Auth:** HTTP Basic, API key as username, `X` as password. 15 second timeout per request.
+- **Pacing (proactive):** remembers `X-RateLimit-Remaining` from the last response. With 5 or fewer calls left, waits 1.5 s before each call (about 40/min, under the trial's 50).
+- **Backoff (reactive):** on 429, waits `Retry-After` seconds plus up to 1 s of jitter, at most 3 attempts in total. If Freshdesk asks for more than 30 s, it doesn't wait inside the tool call; it returns "wait N seconds" so the host doesn't time out.
+- **Retry policy:**
+
+  | Response | Retried? | Why |
+  |---|---|---|
+  | 429 | Yes, reads and writes | Freshdesk rejected it unprocessed, so retrying is safe |
+  | 5xx, network error, timeout | No | A write may have landed; for the note tool the agent is told to check the ticket before trying again |
+  | 400, 401, 403, 404 | No | The same request fails the same way and still costs budget |
+
+- **Errors:** throws `FreshdeskError(message, status)`, where the message is written for the model. 400s list each field error Freshdesk returned.
+- **Logging:** only to **stderr** (stdout is the MCP protocol channel): pacing pauses and 429 retries. The API key is never logged.
+- **Pagination helper:** `nextPageFrom(headers, page)` turns Freshdesk's `Link: …; rel="next"` header into a page number, never a URL.
+
 ## Known limits
 
-See the "can't" table and "What I'd build next" in [`docs/CONNECTOR.md`](docs/CONNECTOR.md). In short: API key auth for one merchant today (OAuth-style grants for many), rate-limit and confirmation state live in one process, and `get_ticket` returns the 10 most recent conversations.
+In short: API key auth for one merchant today (OAuth-style grants for many), rate-limit and confirmation state live in one process, `get_ticket` returns at most 10 conversations, and the two-phase note makes approval the natural path but needs the host to enforce a human click. Full list in [`docs/CONNECTOR.md`](docs/CONNECTOR.md#known-limits).

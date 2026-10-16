@@ -10,7 +10,8 @@
     "test": "node scripts/test-connector.mjs",
     "build": "tsc",
     "start": "node --env-file=.env build/index.js",
-    "inspect": "npx @modelcontextprotocol/inspector node --env-file=.env build/index.js"
+    "inspect": "npx @modelcontextprotocol/inspector node --env-file=.env build/index.js",
+    "spec": "node scripts/dump-tool-spec.mjs"
   },
   "repository": {
     "type": "git",
